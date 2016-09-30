@@ -5,8 +5,8 @@
 #include <vector>
 #include "Node.h"
 #include "Person.h"
-#define DEFAULT_p 100
-#define DEFAULT_f 10000
+#define DEFAULT_p 8
+#define DEFAULT_f -1
 using namespace std;
 
 void printPopulation();
@@ -21,7 +21,7 @@ int fitLimit = DEFAULT_f;
 char line[100];
 
 int solution;
-int solutionCross;
+//int solutionCross;
 int* solutionNodes;
 
 int n;
@@ -87,15 +87,21 @@ void randomPermute() {
 int calcCycle(int* nodeIdxs)
 {
     int sum = 0, i;
-    if(fitLimit > 0){
-//        fitLimit--;
+    if(fitLimit > 0 || fitLimit == -1){
+        if(fitLimit > 0) fitLimit--;
         nodeIdxs[0] = nodeIdxs[n];
         for(i = 0; i < n; i++){
             sum += e[nodeIdxs[i]][nodeIdxs[i+1]];
         }
         return sum;
     }else{
-        return -1;
+        oout = fopen("opt.tour.csv", "w");
+        for(i=1;i<=n;i++){
+            fprintf(oout,"%d\n",solutionNodes[i]);
+        }
+        fclose(oout);
+        fflush(out);
+        exit(0);
     }
 }
 
@@ -229,7 +235,7 @@ int calcCross(int* nodeIdxs)
     return cnt;
 }
 
-void untwistOne(int *a)
+bool untwistOne(int *a)
 {
     int i,j,k,c;
     bool flag = false;
@@ -266,11 +272,13 @@ void untwistOne(int *a)
         for(k = 0; k <= n; k++){
             nodeIdxs[k] = rPermu[k];
         }
+        flag = true;
     }
 
     for(i = 1; i <= n; i++){
         rPermu[i] = nodeIdxs[i];
     }
+    return flag;
 }
 
 void untwist(int *a)
@@ -338,24 +346,26 @@ double Seq(Person &a, Person &b)
 double LCS(Person &a, Person &b)
 {
     int i,j;
-    int d[n+1][n+1];
+    int d[2][n+1];
+    int t = 0, nt= 1;;
     for(i = 0; i <= n; i++){
-        d[i][0] = 0;
-        d[0][i] = 0;
+        d[t][i] = 0;
     }
     for(i = 1; i <= n; i++){
         for(j = 1; j <= n; j++){
-            d[i][j] = d[i-1][j];
+            d[nt][j] = d[t][j];
             if(a.nodes[i] == b.nodes[j]){
-                d[i][j] = d[i-1][j-1]+1;
+                d[nt][j] = d[t][j-1]+1;
             }else{
-                if(d[i-1][j] < d[i][j-1]){
-                    d[i][j] = d[i][j-1];
+                if(d[nt][j] < d[nt][j-1]){
+                    d[nt][j] = d[nt][j-1];
                 }
             }
         }
+        t = 1 - t;
+        nt = 1 - nt;
     }
-    return (double)d[n][n] / n;
+    return (double)d[t][n] / n;
 }
 
 void crossover(Person &a, Person &b)
@@ -369,6 +379,7 @@ void crossover(Person &a, Person &b)
     }
     pos = rand() % n + 1;
     //pos = 0;
+    /*
     if(a.cycle < b.cycle){
         if(a.cross >= b.cross){
             length = 19*n/20 + (rand() % (n/20));
@@ -377,7 +388,7 @@ void crossover(Person &a, Person &b)
         }
     }else{
         length = (int)(n/2);
-    }
+    }*/
     length = (int)(n/2);
     //printf("len = %d, pos = %d\n", length, pos);
     for(i = 0; i < length; i++){
@@ -396,13 +407,14 @@ void crossover(Person &a, Person &b)
     //printArray(rPermu);
 }
 
-void mutate(Person &p)
+void mutate(Person &p, int threshold3)
 {
     int threshold = 35;
     int threshold2 = 15;
     int p1,p2,tmp;
-    int i;
+    int i,c,j;
     int r = rand()%1000;
+    int arr[n+1];
     if(r < threshold){
         /*randomPermute();
         untwist(rPermu);
@@ -430,6 +442,25 @@ void mutate(Person &p)
             p.nodes[i] = rPermu[i];
         }
         p.nodes[0] = p.nodes[n];
+    }else if(r < threshold + threshold2 + threshold3){
+        i = rand()% (n-1) + 1;
+        tmp = p.nodes[i];
+        p.nodes[i] = p.nodes[i+1];
+        p.nodes[i+1] = tmp;
+    }
+    if(r < threshold + threshold2 + threshold3){
+        c = 0;
+		for(i = 1; i <= n; i++){
+            arr[i] = p.nodes[i];
+			if(arr[i] == 1){ j = i;}
+		}
+		for(i = j; i <= n; i++){
+			p.nodes[++c] = arr[i];
+		}
+		for(i = 1; i < j; i++){
+			p.nodes[++c] = arr[i];
+		}
+        p.nodes[0] = p.nodes[n];
     }
 }
 
@@ -443,26 +474,13 @@ void GAMain()
     int toPop;
     int first = popLimit/5, second = 4*popLimit/5;
     double avCycle, avCycle1, avCycle2, avCycle3;
-    double avCross, avCross1, avCross2, avCross3;
     double lastTime = 0;
     double curTime = 0;
     for(iter = 0;; iter++){
         curTime = static_cast<double>(clock()) / 1000000 - startTime;
-        if(curTime-lastTime > 10){
-            lastTime = curTime;
-            oout = fopen("opt.tour.csv", "w");
-            for(i=1;i<=n;i++){
-                fprintf(oout,"%d\n",solutionNodes[i]);
-            }
-            fclose(oout);
-        }
-        avCross = 0;
         avCycle = 0;
-        if(iter == 1000000){
-            break;
-        }
-        printf("%d %.3lf %d %d ",iter, curTime, solution, solutionCross);
-        fprintf(out, "%d %.3lf %d %d ",iter, curTime, solution, solutionCross);
+        printf("%d %.3lf %d ",iter, curTime, solution);
+        fprintf(out, "%d %.3lf %d ",iter, curTime, solution);
         /*
         untwist(population[cur][0].nodes);
         int untwistedCycle = calcCycle(rPermu);
@@ -473,58 +491,87 @@ void GAMain()
         }*/
         if(solution > population[cur][0].cycle){
             solution = population[cur][0].cycle;
+            //solutionCross = population[cur][0].cross;
             //solutionCross = calcCross(rPermu);
-            arrayCopy(solutionNodes, rPermu); 
+            arrayCopy(solutionNodes, population[cur][0].nodes); 
+            oout = fopen("opt.tour.csv", "w");
+            for(i=1;i<=n;i++){
+                fprintf(oout,"%d\n",solutionNodes[i]);
+            }
+            fclose(oout);
         }
         //printPopulation();
         for(i = 0; i < popLimit; i++){
-            avCross+=population[cur][i].cross;
+            //avCross+=population[cur][i].cross;
             avCycle+=population[cur][i].cycle;
-            untwistOne(population[cur][i].nodes);
-            population[nextPop].push_back(Person(rPermu, n));
+            bool isUnt = untwistOne(population[cur][i].nodes);
+            if(isUnt){
+                population[nextPop].push_back(Person(rPermu, n));
+            }else{
+                crossover(population[cur][i], population[cur][rand()%popLimit]);
+                population[nextPop].push_back(Person(rPermu, n));
+            }
         }
         for(i = 0; i < popLimit; i++){
-            avCross+=population[cur][i].cross;
+            //avCross+=population[cur][i].cross;
             avCycle+=population[cur][i].cycle;
             crossover(population[cur][i], population[cur][popLimit-1-i]);
             population[nextPop].push_back(Person(rPermu, n));
         }
         for(i = 0; i < popLimit - 1; i++){
-            avCross+=population[cur][i].cross;
+            //avCross+=population[cur][i].cross;
             avCycle+=population[cur][i].cycle;
             crossover(population[cur][i], population[cur][i+1]);
             population[nextPop].push_back(Person(rPermu, n));
         }
+        avCycle+=population[cur][i].cycle;
         crossover(population[cur][popLimit - 1], population[cur][0]);
         population[nextPop].push_back(Person(rPermu, n));
 
-        printf("%.3lf %.3lf\n", avCycle/popLimit/3, avCross/popLimit/3);
-        fprintf(out, "%.3lf %.3lf\n", avCycle/popLimit/3, avCross/popLimit/3);
+        fprintf(out, "%.3lf\n", avCycle/(popLimit*3));
         fflush(out);
         sort(population[nextPop].begin(), population[nextPop].end(), comp);
         len = population[nextPop].size();
+        //fprintf(out, "Before LCS Loop\n");
+        //fflush(out);
         for(i = 0; i < population[nextPop].size() - 1; i++){
+            //fprintf(out, "Before LCS\n");
+            //fflush(out);
             double lcs = LCS(population[nextPop][i], population[nextPop][i+1]);
+            //fprintf(out, "After LCS\n");
+            //fflush(out);
             if(lcs > 0.6){
                 //printf("seq = %.3lf\n", lcs);
+                //fprintf(out, "Erase Before\n");
+                //fflush(out);
                 population[nextPop].erase(population[nextPop].begin()+i+1);
+                //fprintf(out, "Erase After\n");
+                //fflush(out);
                 i--;
             }
         }
+        //fprintf(out, "After LCS Loop\n");
+        //fflush(out);
         len = population[nextPop].size();
         //printf("remain pop = %d\n",(int)len);
         for(i = popLimit; i < len; i++){
             population[nextPop].pop_back();
         }
+        //fprintf(out, "Pop over\n");
+        //fflush(out);
         len = population[nextPop].size();
         for(i = len; i < popLimit; i++){
             randomPermute();
             population[nextPop].push_back(Person(rPermu, n));
         }
+        //fprintf(out, "Fill random\n");
+        //fflush(out);
         len = population[nextPop].size();
         for(i = 0; i < len; i++){
-            mutate(population[nextPop][i]);
+            mutate(population[nextPop][i], 5);
         }
+        //fprintf(out, "Mutation\n");
+        //fflush(out);
         population[cur].erase(population[cur].begin(), population[cur].end());
         cur = nextPop;
         nextPop = 1 - nextPop;

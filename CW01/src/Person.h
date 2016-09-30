@@ -32,7 +32,7 @@ struct Person{
             }
         }
 		cycle = calcCycle(nodes);
-		cross = 0;
+		//cross = 0;
 		//cross = calcCross(nodes);
 		nodes[0] = nodes[n];
 	}
