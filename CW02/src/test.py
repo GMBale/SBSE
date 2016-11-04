@@ -125,8 +125,10 @@ def SquareError(expr, points):
     error = (CalcPostfix(expr) - y)
     return error * error
 
-error = 0
-for i in range(M):
-   error = error + SquareError(expr, points[i]) 
-error = error / M
-print error
+def Fitness(expr, points):
+    error = 0
+    for i in range(M):
+       error = error + SquareError(expr, points[i]) 
+    error = error / M
+    return error
+print Fitness(expr, points)
